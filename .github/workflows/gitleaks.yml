@@ -17,7 +17,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ORG_PAT }}
         run: |
-          include=$(gh repo list Techfolk-AS --no-archived --json name,defaultBranchRef --jq '[.[] | {repo: .name, branch: .defaultBranchRef.name}]' --limit 200)
+          include=$(gh repo list Techfolk-AS --no-archived --json name,defaultBranchRef --jq '[.[] | select(.defaultBranchRef.name != "") | {repo: .name, branch: .defaultBranchRef.name}]' --limit 200)
           echo "include=$include" >> "$GITHUB_OUTPUT"
 
   scan:
