@@ -1,6 +1,7 @@
 name: Gitleaks Secret Scanning
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       scan-mode:
