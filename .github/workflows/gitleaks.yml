@@ -2,7 +2,7 @@ name: Gitleaks Org Scan
 
 on:
   schedule:
-    - cron: "0 8 * * 1" # Weekly on Monday at 08:00 UTC
+    - cron: "0 8 * * *" # Daily at 08:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -47,3 +47,18 @@ jobs:
 
       - name: Run Gitleaks
         run: gitleaks detect --source . --verbose --exit-code 1
+
+  notify:
+    name: Notify on failure
+    needs: [list-repos, scan]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v2
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ secrets.SLACK_CHANNEL_ID }}
+            text: ":rotating_light: *Gitleaks scan failed*\nThe daily org-wide secret scan found issues in one or more repositories.\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
