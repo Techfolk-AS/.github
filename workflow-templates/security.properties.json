@@ -1,0 +1,6 @@
+{
+  "name": "Security",
+  "description": "Run secret and vulnerability scanning on pull requests using org-wide reusable workflows.",
+  "iconName": "shield-lock",
+  "categories": ["Security"]
+}

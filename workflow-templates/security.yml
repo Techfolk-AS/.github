@@ -1,0 +1,9 @@
+name: Security
+on:
+  pull_request:
+    branches: [$default-branch]
+jobs:
+  gitleaks:
+    uses: Techfolk-AS/.github/.github/workflows/reusable-gitleaks.yml@main
+  trivy:
+    uses: Techfolk-AS/.github/.github/workflows/reusable-trivy.yml@main
