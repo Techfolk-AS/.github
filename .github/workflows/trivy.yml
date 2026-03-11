@@ -1,0 +1,46 @@
+name: Trivy Org Scan
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # Daily at 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  list-repos:
+    name: List org repos
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.repos.outputs.include }}
+    steps:
+      - name: Get all repos
+        id: repos
+        env:
+          GH_TOKEN: ${{ secrets.ORG_PAT }}
+        run: |
+          include=$(gh repo list Techfolk-AS --no-archived --json name,defaultBranchRef --jq '[.[] | select(.defaultBranchRef.name != "") | {repo: .name, branch: .defaultBranchRef.name}]' --limit 200)
+          echo "include=$include" >> "$GITHUB_OUTPUT"
+
+  scan:
+    name: "Scan: ${{ matrix.repo }}"
+    needs: list-repos
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.list-repos.outputs.include) }}
+    steps:
+      - name: Checkout ${{ matrix.repo }}
+        uses: actions/checkout@v4
+        with:
+          repository: Techfolk-AS/${{ matrix.repo }}
+          ref: ${{ matrix.branch }}
+          token: ${{ secrets.ORG_PAT }}
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
