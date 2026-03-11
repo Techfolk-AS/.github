@@ -19,7 +19,7 @@ Centrally-run scans that cover all repos on a schedule — catches new CVE discl
 
 | Check | Tool | Schedule | Description |
 |-------|------|----------|-------------|
-| Secret scanning | [Gitleaks](https://github.com/gitleaks/gitleaks) | Weekly Mon 08:00 UTC | Scans full git history across all org repos |
+| Secret scanning | [Gitleaks](https://github.com/gitleaks/gitleaks) | Daily 08:00 UTC | Scans full git history across all org repos |
 | Vulnerability scanning | [Trivy](https://github.com/aquasecurity/trivy) | Daily 06:00 UTC | Scans dependency files across all org repos |
 
 ## How it works
@@ -67,9 +67,17 @@ The script clones each repo, adds the caller workflow, and pushes a branch. Revi
 
 ### Scheduled scans
 
-The scheduled workflows require an `ORG_PAT` secret — a GitHub Personal Access Token with `repo` scope for the Techfolk-AS org.
+The scheduled workflows require the following secrets:
 
-Add it at the org level: **Settings > Secrets and variables > Actions > New organization secret**.
+| Secret | Purpose |
+|--------|---------|
+| `ORG_PAT` | GitHub Personal Access Token with `repo` scope for the Techfolk-AS org |
+| `SLACK_BOT_TOKEN` | Bot token (`xoxb-...`) from your Slack app (needs `chat:write` scope) |
+| `SLACK_CHANNEL_ID` | Channel ID for the alerts channel (e.g. `C0123456789`) |
+
+Add them at the org level: **Settings > Secrets and variables > Actions > New organization secret**.
+
+The Slack app bot must be invited to the alerts channel (`/invite @botname`). When any scheduled scan fails, a notification is sent to the channel.
 
 ### PR scans
 
