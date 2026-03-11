@@ -1,0 +1,6 @@
+{
+  "name": "Techfolk Security Checks",
+  "description": "Org-wide security checks: secret scanning (gitleaks), dependency review, and CodeQL SAST",
+  "iconName": "shield-lock",
+  "categories": ["Security"]
+}
