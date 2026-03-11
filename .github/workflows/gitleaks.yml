@@ -1,0 +1,45 @@
+name: Gitleaks Org Scan
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # Weekly on Monday at 08:00 UTC
+  workflow_dispatch:
+
+jobs:
+  list-repos:
+    name: List org repos
+    runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.repos.outputs.repos }}
+    steps:
+      - name: Get all repos
+        id: repos
+        env:
+          GH_TOKEN: ${{ secrets.ORG_PAT }}
+        run: |
+          repos=$(gh repo list Techfolk-AS --no-archived --json name --jq '[.[].name]' --limit 200)
+          echo "repos=$repos" >> "$GITHUB_OUTPUT"
+
+  scan:
+    name: "Scan: ${{ matrix.repo }}"
+    needs: list-repos
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJSON(needs.list-repos.outputs.repos) }}
+    steps:
+      - name: Checkout ${{ matrix.repo }}
+        uses: actions/checkout@v4
+        with:
+          repository: Techfolk-AS/${{ matrix.repo }}
+          token: ${{ secrets.ORG_PAT }}
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_8.24.3_linux_x64.tar.gz | tar xz
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Run Gitleaks
+        run: gitleaks detect --source . --verbose --exit-code 1
