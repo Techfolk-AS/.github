@@ -3,11 +3,21 @@
 # Bootstrap the security caller workflow into all non-archived org repos.
 # Skips repos that already have .github/workflows/security.yml.
 #
-# Usage: ./scripts/bootstrap-security-workflow.sh
+# Usage: ./scripts/bootstrap-security-workflow.sh [--dry-run]
+#
+# Options:
+#   --dry-run  Show what would be done without making any changes
 #
 # Requires: gh CLI authenticated with org access
 
 set -euo pipefail
+
+DRY_RUN=false
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=true
+  echo "=== DRY RUN — no changes will be made ==="
+  echo
+fi
 
 ORG="Techfolk-AS"
 WORKFLOW_PATH=".github/workflows/security.yml"
@@ -39,6 +49,11 @@ for repo in $repos; do
   # Check if the workflow file already exists on the default branch
   if gh api "repos/$ORG/$repo/contents/$WORKFLOW_PATH" --silent 2>/dev/null; then
     echo "  Skipping: $WORKFLOW_PATH already exists"
+    continue
+  fi
+
+  if $DRY_RUN; then
+    echo "  Would add $WORKFLOW_PATH and push branch $BRANCH"
     continue
   fi
 
