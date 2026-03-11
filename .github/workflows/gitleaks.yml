@@ -10,15 +10,15 @@ jobs:
     name: List org repos
     runs-on: ubuntu-latest
     outputs:
-      repos: ${{ steps.repos.outputs.repos }}
+      include: ${{ steps.repos.outputs.include }}
     steps:
       - name: Get all repos
         id: repos
         env:
           GH_TOKEN: ${{ secrets.ORG_PAT }}
         run: |
-          repos=$(gh repo list Techfolk-AS --no-archived --json name --jq '[.[].name]' --limit 200)
-          echo "repos=$repos" >> "$GITHUB_OUTPUT"
+          include=$(gh repo list Techfolk-AS --no-archived --json name,defaultBranchRef --jq '[.[] | {repo: .name, branch: .defaultBranchRef.name}]' --limit 200)
+          echo "include=$include" >> "$GITHUB_OUTPUT"
 
   scan:
     name: "Scan: ${{ matrix.repo }}"
@@ -27,12 +27,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        repo: ${{ fromJSON(needs.list-repos.outputs.repos) }}
+        include: ${{ fromJSON(needs.list-repos.outputs.include) }}
     steps:
       - name: Checkout ${{ matrix.repo }}
         uses: actions/checkout@v4
         with:
           repository: Techfolk-AS/${{ matrix.repo }}
+          ref: ${{ matrix.branch }}
           token: ${{ secrets.ORG_PAT }}
           fetch-depth: 0
 
