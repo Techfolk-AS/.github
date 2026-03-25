@@ -11,7 +11,7 @@ Every pull request is scanned before it can be merged. Individual repos call reu
 | Check | Tool | Reusable workflow | Description |
 |-------|------|-------------------|-------------|
 | Secret scanning | [Gitleaks](https://github.com/gitleaks/gitleaks) | `reusable-gitleaks.yml` | Detects hardcoded secrets in the PR diff and full history |
-| Vulnerability scanning | [Trivy](https://github.com/aquasecurity/trivy) | `reusable-trivy.yml` | Finds CRITICAL/HIGH CVEs in dependencies |
+| Vulnerability scanning | [Grype](https://github.com/anchore/grype) | `reusable-grype.yml` | Finds CRITICAL/HIGH CVEs in dependencies |
 
 ### Scheduled org-wide scanning (catch-up)
 
@@ -20,7 +20,7 @@ Centrally-run scans that cover all repos on a schedule — catches new CVE discl
 | Check | Tool | Schedule | Description |
 |-------|------|----------|-------------|
 | Secret scanning | [Gitleaks](https://github.com/gitleaks/gitleaks) | Daily 08:00 UTC | Scans full git history across all org repos |
-| Vulnerability scanning | [Trivy](https://github.com/aquasecurity/trivy) | Daily 06:00 UTC | Scans dependency files across all org repos |
+| Vulnerability scanning | [Grype](https://github.com/anchore/grype) | Daily 06:00 UTC | Scans dependency files across all org repos |
 
 ## How it works
 
@@ -36,8 +36,8 @@ on:
 jobs:
   gitleaks:
     uses: Techfolk-AS/.github/.github/workflows/reusable-gitleaks.yml@main
-  trivy:
-    uses: Techfolk-AS/.github/.github/workflows/reusable-trivy.yml@main
+  grype:
+    uses: Techfolk-AS/.github/.github/workflows/reusable-grype.yml@main
 ```
 
 An **org-level ruleset** requires the `Secret scan` and `Vulnerability scan` status checks to pass before merging, enforcing scanning across all repos.

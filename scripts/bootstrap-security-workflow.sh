@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Bootstrap the security caller workflow into all non-archived org repos.
-# Skips repos that already have .github/workflows/security.yml.
+# Bootstrap or update the security caller workflow in all non-archived org repos.
+# Skips repos where the workflow is already up to date.
 #
 # Usage: ./scripts/bootstrap-security-workflow.sh [--dry-run]
 #
@@ -21,10 +21,10 @@ fi
 
 ORG="Techfolk-AS"
 WORKFLOW_PATH=".github/workflows/security.yml"
-BRANCH="chore/add-security-workflow"
-COMMIT_MSG="Add PR security scanning workflow
+BRANCH="chore/replace-trivy-with-grype"
+COMMIT_MSG="Replace Trivy with Grype for PR security scanning
 
-Calls reusable gitleaks and trivy workflows from the central .github repo
+Calls reusable gitleaks and grype workflows from the central .github repo
 to enforce secret and vulnerability scanning on all pull requests."
 
 WORKFLOW_CONTENT='name: Security
@@ -34,8 +34,8 @@ on:
 jobs:
   gitleaks:
     uses: Techfolk-AS/.github/.github/workflows/reusable-gitleaks.yml@main
-  trivy:
-    uses: Techfolk-AS/.github/.github/workflows/reusable-trivy.yml@main
+  grype:
+    uses: Techfolk-AS/.github/.github/workflows/reusable-grype.yml@main
 '
 
 TMPDIR=$(mktemp -d)
@@ -46,14 +46,17 @@ repos=$(gh repo list "$ORG" --no-archived --json name --jq '.[].name' --limit 20
 for repo in $repos; do
   echo "--- $ORG/$repo ---"
 
-  # Check if the workflow file already exists on the default branch
+  exists=false
   if gh api "repos/$ORG/$repo/contents/$WORKFLOW_PATH" --silent 2>/dev/null; then
-    echo "  Skipping: $WORKFLOW_PATH already exists"
-    continue
+    exists=true
   fi
 
   if $DRY_RUN; then
-    echo "  Would add $WORKFLOW_PATH and push branch $BRANCH"
+    if $exists; then
+      echo "  Would update $WORKFLOW_PATH and push branch $BRANCH"
+    else
+      echo "  Would add $WORKFLOW_PATH and push branch $BRANCH"
+    fi
     continue
   fi
 
@@ -62,6 +65,13 @@ for repo in $repos; do
 
   mkdir -p "$repo_dir/.github/workflows"
   echo "$WORKFLOW_CONTENT" > "$repo_dir/$WORKFLOW_PATH"
+
+  # Skip if content is already up to date
+  if git -C "$repo_dir" diff --quiet -- "$WORKFLOW_PATH" 2>/dev/null; then
+    echo "  Already up to date"
+    rm -rf "$repo_dir"
+    continue
+  fi
 
   git -C "$repo_dir" checkout -b "$BRANCH"
   git -C "$repo_dir" add "$WORKFLOW_PATH"
