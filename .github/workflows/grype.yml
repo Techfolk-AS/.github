@@ -1,4 +1,4 @@
-name: Trivy Org Scan
+name: Grype Org Scan
 
 on:
   schedule:
@@ -36,14 +36,13 @@ jobs:
           ref: ${{ matrix.branch }}
           token: ${{ secrets.ORG_PAT }}
 
-      - name: Run Trivy
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+      - name: Run Grype
+        uses: anchore/scan-action@v6
         with:
-          scan-type: fs
-          scan-ref: .
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: 1
+          path: .
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: true
 
   notify:
     name: Notify on failure
@@ -58,4 +57,4 @@ jobs:
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             channel: ${{ secrets.SLACK_CHANNEL_ID }}
-            text: ":rotating_light: *Trivy scan failed*\nThe daily org-wide vulnerability scan found issues in one or more repositories.\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            text: ":rotating_light: *Grype scan failed*\nThe daily org-wide vulnerability scan found issues in one or more repositories.\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"

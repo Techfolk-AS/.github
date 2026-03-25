@@ -1,0 +1,19 @@
+name: Grype PR Scan
+
+on:
+  workflow_call:
+
+jobs:
+  grype:
+    name: Vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Grype
+        uses: anchore/scan-action@v6
+        with:
+          path: .
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: true
