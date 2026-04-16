@@ -2,7 +2,7 @@ name: Grype Org Scan
 
 on:
   schedule:
-    - cron: "0 6 * * *" # Daily at 06:00 UTC
+    - cron: "0 6 * * 1-5" # Weekdays at 06:00 UTC
   workflow_dispatch:
 
 jobs:
