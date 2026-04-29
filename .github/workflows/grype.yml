@@ -30,14 +30,14 @@ jobs:
         include: ${{ fromJSON(needs.list-repos.outputs.include) }}
     steps:
       - name: Checkout ${{ matrix.repo }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: Techfolk-AS/${{ matrix.repo }}
           ref: ${{ matrix.branch }}
           token: ${{ secrets.ORG_PAT }}
 
       - name: Run Grype
-        uses: anchore/scan-action@v6
+        uses: anchore/scan-action@v7
         with:
           path: .
           severity-cutoff: high
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send Slack notification
-        uses: slackapi/slack-github-action@v2
+        uses: slackapi/slack-github-action@v3
         with:
           method: chat.postMessage
           token: ${{ secrets.SLACK_BOT_TOKEN }}
