@@ -3,6 +3,10 @@ name: Grype PR Scan
 on:
   workflow_call:
 
+env:
+  # Pinned to keep scans reproducible; bump as new Grype releases land.
+  GRYPE_VERSION: v0.110.0
+
 jobs:
   grype:
     name: Vulnerability scan
@@ -10,11 +14,40 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install Grype
+        run: |
+          # Retry the install — transient GitHub release/CDN 5xx errors are
+          # common and must not be reported as a vulnerability finding.
+          ok=
+          for attempt in 1 2 3 4 5; do
+            if curl --retry 3 --retry-all-errors -sSfL \
+                 https://raw.githubusercontent.com/anchore/grype/main/install.sh \
+                 | sh -s -- -b /usr/local/bin "${GRYPE_VERSION}"; then
+              ok=1; break
+            fi
+            echo "Grype install attempt ${attempt} failed; retrying in $((attempt * 15))s..."
+            sleep $((attempt * 15))
+          done
+          if [ -z "$ok" ] || ! command -v grype >/dev/null; then
+            echo "::error title=Grype tooling failure::Grype failed to install after 5 attempts (transient GitHub release/CDN outage). This is NOT a vulnerability finding — re-run the job."
+            exit 1
+          fi
+
       - name: Run Grype
-        uses: anchore/scan-action@v7
-        with:
-          path: .
-          severity-cutoff: high
-          only-fixed: true
-          fail-build: true
-          output-format: table
+        run: |
+          # Run without --fail-on so a clean run always exits 0; that lets us
+          # tell a tooling error (non-zero) apart from an actual finding.
+          set +e
+          grype "dir:." --only-fixed -o table -o "json=grype.json"
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            echo "::error title=Grype tooling failure::Grype failed to run (exit ${code}) — scan tooling error, NOT a vulnerability finding."
+            exit 1
+          fi
+          count=$(jq '[.matches[] | select(.vulnerability.severity == "High" or .vulnerability.severity == "Critical")] | length' grype.json)
+          if [ "$count" -gt 0 ]; then
+            echo "::error title=Vulnerabilities found::Grype found ${count} fixable high/critical vulnerabilities. See the table above."
+            exit 1
+          fi
+          echo "No fixable high/critical vulnerabilities found."
