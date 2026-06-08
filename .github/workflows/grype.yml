@@ -5,6 +5,10 @@ on:
     - cron: "0 6 * * 1-5" # Weekdays at 06:00 UTC
   workflow_dispatch:
 
+env:
+  # Pinned to keep scans reproducible; bump as new Grype releases land.
+  GRYPE_VERSION: v0.110.0
+
 jobs:
   list-repos:
     name: List org repos
@@ -36,14 +40,67 @@ jobs:
           ref: ${{ matrix.branch }}
           token: ${{ secrets.ORG_PAT }}
 
+      - name: Install Grype
+        id: install
+        run: |
+          # Retry the install — transient GitHub release/CDN 5xx errors are
+          # common and must not be reported as a vulnerability finding.
+          ok=
+          for attempt in 1 2 3 4 5; do
+            if curl --retry 3 --retry-all-errors -sSfL \
+                 https://raw.githubusercontent.com/anchore/grype/main/install.sh \
+                 | sh -s -- -b /usr/local/bin "${GRYPE_VERSION}"; then
+              ok=1; break
+            fi
+            echo "Grype install attempt ${attempt} failed; retrying in $((attempt * 15))s..."
+            sleep $((attempt * 15))
+          done
+          if [ -z "$ok" ] || ! command -v grype >/dev/null; then
+            echo "result=tooling" >> "$GITHUB_OUTPUT"
+            echo "::error title=Grype tooling failure::Grype failed to install after 5 attempts (transient GitHub release/CDN outage). This is NOT a vulnerability finding."
+            exit 1
+          fi
+
       - name: Run Grype
-        uses: anchore/scan-action@v7
+        id: scan
+        run: |
+          # Run without --fail-on so a clean run always exits 0; that lets us
+          # tell a tooling error (non-zero) apart from an actual finding.
+          set +e
+          grype "dir:." --only-fixed -o table -o "json=grype.json"
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            echo "result=tooling" >> "$GITHUB_OUTPUT"
+            echo "::error title=Grype tooling failure::Grype failed to run (exit ${code}) — scan tooling error, NOT a vulnerability finding."
+            exit 1
+          fi
+          count=$(jq '[.matches[] | select(.vulnerability.severity == "High" or .vulnerability.severity == "Critical")] | length' grype.json)
+          if [ "$count" -gt 0 ]; then
+            echo "result=vuln" >> "$GITHUB_OUTPUT"
+            echo "::error title=Vulnerabilities found::Grype found ${count} fixable high/critical vulnerabilities. See the table above."
+            exit 1
+          fi
+          echo "result=ok" >> "$GITHUB_OUTPUT"
+          echo "No fixable high/critical vulnerabilities found."
+
+      - name: Record result
+        if: always()
+        run: |
+          # vuln | tooling | ok — defaults to tooling if an earlier step
+          # (e.g. checkout) died before classification.
+          status="${{ steps.scan.outputs.result }}"
+          [ -z "$status" ] && status="${{ steps.install.outputs.result }}"
+          [ -z "$status" ] && status="tooling"
+          printf '%s' "$status" > "grype-result-${{ matrix.repo }}.txt"
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          path: .
-          severity-cutoff: high
-          only-fixed: true
-          fail-build: true
-          output-format: table
+          name: grype-result-${{ matrix.repo }}
+          path: grype-result-${{ matrix.repo }}.txt
+          retention-days: 7
 
   notify:
     name: Notify on failure
@@ -51,6 +108,44 @@ jobs:
     if: failure()
     runs-on: ubuntu-latest
     steps:
+      - name: Download results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: grype-result-*
+          merge-multiple: true
+          path: results
+        continue-on-error: true
+
+      - name: Compose Slack message
+        id: msg
+        run: |
+          vuln_repos=""
+          tooling_repos=""
+          shopt -s nullglob
+          for f in results/grype-result-*.txt; do
+            base=$(basename "$f" .txt)
+            repo="${base#grype-result-}"
+            status=$(cat "$f")
+            case "$status" in
+              vuln) vuln_repos="${vuln_repos} ${repo}" ;;
+              tooling) tooling_repos="${tooling_repos} ${repo}" ;;
+            esac
+          done
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ -n "$vuln_repos" ]; then
+            text=":rotating_light: *Grype org scan — vulnerabilities found*"
+            text="${text}\n:lock: Fixable high/critical vulns in:${vuln_repos}"
+            [ -n "$tooling_repos" ] && text="${text}\n:warning: Scan also did not complete (tooling/install error, likely transient — no vulns assessed):${tooling_repos}"
+          elif [ -n "$tooling_repos" ]; then
+            text=":warning: *Grype org scan did not complete*"
+            text="${text}\nThe scan tooling failed (install/run error, likely a transient GitHub outage) — *no vulnerabilities were assessed* for:${tooling_repos}"
+            text="${text}\nRe-run the workflow to retry."
+          else
+            text=":rotating_light: *Grype org scan failed*\nOne or more jobs failed; see the run for details."
+          fi
+          text="${text}\n<${run_url}|View run>"
+          echo "text=${text}" >> "$GITHUB_OUTPUT"
+
       - name: Send Slack notification
         uses: slackapi/slack-github-action@v3
         with:
@@ -58,4 +153,4 @@ jobs:
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             channel: ${{ secrets.SLACK_CHANNEL_ID }}
-            text: ":rotating_light: *Grype scan failed*\nThe daily org-wide vulnerability scan found issues in one or more repositories.\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            text: "${{ steps.msg.outputs.text }}"
