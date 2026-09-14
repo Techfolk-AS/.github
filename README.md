@@ -1,6 +1,6 @@
 # Techfolk `.github`
 
-Central security scanning for all Techfolk repos.
+Central security scanning and organization automation for Techfolk.
 
 ## What's included
 
@@ -64,6 +64,29 @@ All workflows can also be triggered manually from **Actions > [Workflow Name] > 
 The script clones each repo, adds the caller workflow, and pushes a branch. Review and merge the branches.
 
 ## Setup
+
+### All team membership
+
+`sync-all-team.yml` adds missing Techfolk-AS organization members (including owners) to
+the [`all` team](https://github.com/orgs/Techfolk-AS/teams/all) hourly at minute 17 UTC.
+It paginates both member lists, preserves existing team roles, and never removes members.
+New invitees are included after accepting the organization invitation. Manually removing
+someone from the team will cause the next run to add them again.
+
+1. Create a fine-grained PAT with **Techfolk-AS** as its resource owner and organization
+   **Members: Read and write** permission, using an org owner or `all` team maintainer's
+   account. Obtain organization approval if required.
+2. Save it as the repository Actions secret **`TEAM_SYNC_TOKEN`** (or an organization
+   secret accessible to this repository). The built-in `GITHUB_TOKEN` is insufficient.
+3. Merge the workflow into the default branch, then select **Actions > Sync all team >
+   Run workflow** for the initial bulk assignment. Subsequent runs are scheduled;
+   GitHub can delay them, and disables public-repository schedules after 60 days of
+   repository inactivity. Renew the token before it expires.
+
+The team must not be managed by identity-provider synchronization. API failures fail
+the run; rerunning safely picks up remaining members.
+
+Run the local check without credentials or API writes: `python3 scripts/test_sync_all_team.py`.
 
 ### Scheduled scans
 
