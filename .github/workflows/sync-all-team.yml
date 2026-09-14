@@ -1,0 +1,43 @@
+name: Sync all team
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: sync-all-team
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'Techfolk-AS/.github'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Add missing org members to all
+        env:
+          GH_TOKEN: ${{ secrets.TEAM_SYNC_TOKEN }}
+          GH_HOST: github.com
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${GH_TOKEN:?Set TEAM_SYNC_TOKEN with organization Members read/write permission}"
+          export LC_ALL=C
+
+          gh api --paginate 'orgs/Techfolk-AS/members?per_page=100&role=all' \
+            --jq '.[].login | ascii_downcase' | sort -u > org-members.txt
+          gh api --paginate 'orgs/Techfolk-AS/teams/all/members?per_page=100&role=all' \
+            --jq '.[].login | ascii_downcase' | sort -u > team-members.txt
+          comm -23 org-members.txt team-members.txt > missing-members.txt
+
+          while IFS= read -r login; do
+            gh api --method PUT "orgs/Techfolk-AS/teams/all/memberships/$login" \
+              -f role=member --silent
+            echo "Added $login to all"
+            sleep 1
+          done < missing-members.txt
+
+          echo "Added $(wc -l < missing-members.txt | tr -d ' ') missing org member(s) to all." >> "$GITHUB_STEP_SUMMARY"
