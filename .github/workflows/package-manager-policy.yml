@@ -1,0 +1,49 @@
+name: Package Manager Policy Org Scan
+
+on:
+  schedule:
+    - cron: "43 7 * * 1-5" # Weekdays at 07:43 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-manager-policy-org-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    if: github.repository == 'Techfolk-AS/.github'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - name: Install scanner dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Scan organization repositories
+        env:
+          GH_TOKEN: ${{ secrets.ORG_PAT }}
+          GH_HOST: github.com
+        run: |
+          : "${GH_TOKEN:?Set ORG_PAT with organization repository read access}"
+          bun run scripts/scan-org-package-managers.ts
+      - name: Publish summary
+        if: always()
+        run: |
+          if [ -f reports/package-manager-summary.md ]; then
+            cat reports/package-manager-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-manager-policy-report
+          path: reports/
+          if-no-files-found: error
+          retention-days: 14
