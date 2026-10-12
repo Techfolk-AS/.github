@@ -1,0 +1,38 @@
+name: Test Package Manager Scanner
+
+on:
+  pull_request:
+    paths:
+      - "scripts/**/*.ts"
+      - ".github/package-manager-policy.json"
+      - ".github/workflows/*package-manager*.yml"
+      - "package.json"
+      - "bun.lock"
+      - "tsconfig.json"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**/*.ts"
+      - ".github/package-manager-policy.json"
+      - ".github/workflows/*package-manager*.yml"
+      - "package.json"
+      - "bun.lock"
+      - "tsconfig.json"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run typecheck
+      - run: bun test

@@ -1,0 +1,14 @@
+{
+  "minimumReleaseAgeDays": 3,
+  "excludedDirectories": [
+    "node_modules",
+    ".git",
+    "vendor",
+    "dist",
+    "build",
+    "coverage",
+    ".next",
+    ".nuxt"
+  ],
+  "exceptions": []
+}
