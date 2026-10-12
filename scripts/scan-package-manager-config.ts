@@ -693,6 +693,14 @@ function inspectWorkflow(
   }
 }
 
+function booleanOptions(line: string, name: string): boolean[] {
+  const pattern = new RegExp(
+    `(?:^|[\\s"'])--(no-)?${name}(?:[=\\s]+["']?(true|false)["']?)?(?=$|[\\s;&|"'])`,
+    "g",
+  );
+  return [...line.matchAll(pattern)].map((match) => !match[1] && match[2] !== "false");
+}
+
 function inspectCommands(
   contents: string,
   file: string,
@@ -712,6 +720,9 @@ function inspectCommands(
     (item) => item.manager === "npm" || item.manager === "pnpm",
   )) {
     for (const line of lines) {
+      const frozenLockfile = booleanOptions(line, "frozen-lockfile");
+      const releaseAgeStrict = booleanOptions(line, "minimum-release-age-strict");
+      const trustLockfile = booleanOptions(line, "trust-lockfile");
       const prefix =
         project.manager === "pnpm"
           ? "(?:PNPM_CONFIG_MINIMUM_RELEASE_AGE|NPM_CONFIG_MINIMUM_RELEASE_AGE|minimumReleaseAge|--minimum-release-age)"
@@ -728,9 +739,9 @@ function inspectCommands(
           line,
         ) ||
         /(?:NPM|PNPM)_CONFIG_IGNORE_SCRIPTS[\s:=]+["']?false/i.test(line) ||
-        /--(?:trust-lockfile|no-minimum-release-age-strict|no-frozen-lockfile)(?:[=\s]|$)/.test(
-          line,
-        ) ||
+        frozenLockfile.includes(false) ||
+        releaseAgeStrict.includes(false) ||
+        trustLockfile.includes(true) ||
         /(?:trustLockfile|trust_lockfile)[\s:=]+["']?true/i.test(line)
       )
         add(
@@ -754,7 +765,8 @@ function inspectCommands(
       if (new RegExp(`\\b${project.manager}\\s+(?:install|i|ci)\\b`).test(line)) {
         if (
           (project.manager === "npm" && !/\bnpm\s+ci\b/.test(line)) ||
-          (project.manager === "pnpm" && !/--frozen-lockfile\b/.test(line))
+          (project.manager === "pnpm" &&
+            (!frozenLockfile.includes(true) || frozenLockfile.includes(false)))
         )
           add(
             project.path,

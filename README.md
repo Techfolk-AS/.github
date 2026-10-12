@@ -62,8 +62,10 @@ trustPolicy: no-downgrade # pnpm 10.21+
 ```
 
 pnpm 10+ blocks unapproved dependency builds by default. Use `allowBuilds` on
-10.26+ to approve individual packages. pnpm 11+ needs these additional settings
-to prevent release-age bypasses:
+10.26+ to approve individual packages. For pnpm 11+, set
+`minimumReleaseAgeIgnoreMissingTime: false` to reject packages without publish
+timestamps. Explicitly configuring `minimumReleaseAge` makes
+`minimumReleaseAgeStrict` default to `true`; writing it explicitly is optional:
 
 ```yaml
 minimumReleaseAgeStrict: true

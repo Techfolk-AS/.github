@@ -330,6 +330,64 @@ test("finds visible CI bypasses and non-frozen installs", async () => {
   expect(report.findings.some((item) => item.rule === "ci-install")).toBe(true);
 });
 
+test.each([
+  "--minimum-release-age-strict=false",
+  '--minimum-release-age-strict="false"',
+  "--minimum-release-age-strict='false'",
+  "--no-minimum-release-age-strict",
+])("reports disabled release-age strictness in CI: %s", async (flag) => {
+  const report = await scan({
+    ...pnpm,
+    ".github/workflows/build.yml": `jobs:\n  build:\n    steps:\n      - run: pnpm install --frozen-lockfile ${flag}\n`,
+  });
+  expect(report.status).toBe("findings");
+  expect(report.findings.some((item) => item.rule === "ci-override")).toBe(true);
+  expect(report.findings.some((item) => item.rule === "ci-install")).toBe(false);
+});
+
+test.each([
+  "--frozen-lockfile=false",
+  '--frozen-lockfile="false"',
+  "--frozen-lockfile='false'",
+  "--no-frozen-lockfile",
+  "--frozen-lockfile=false --frozen-lockfile",
+])("does not credit disabled frozen installs in CI: %s", async (flag) => {
+  const report = await scan({
+    ...pnpm,
+    ".github/workflows/build.yml": `jobs:\n  build:\n    steps:\n      - run: pnpm install ${flag}\n`,
+  });
+  expect(report.status).toBe("findings");
+  expect(report.findings.some((item) => item.rule === "ci-override")).toBe(true);
+  expect(report.findings.some((item) => item.rule === "ci-install")).toBe(true);
+});
+
+test.each([
+  "--frozen-lockfile",
+  "--frozen-lockfile=true --minimum-release-age-strict=true --trust-lockfile=false",
+  '--frozen-lockfile="true" --minimum-release-age-strict="true"',
+])("accepts enabled frozen installs and safe overrides in CI: %s", async (flag) => {
+  const report = await scan({
+    ...pnpm,
+    ".github/workflows/build.yml": `jobs:\n  build:\n    steps:\n      - run: pnpm install ${flag}\n`,
+  });
+  expect(report.status).toBe("pass");
+});
+
+test("pnpm 11 defaults to strict release-age enforcement for an explicit cooldown", async () => {
+  const files = {
+    ...pnpm,
+    "package.json": '{"packageManager":"pnpm@11.3.0"}',
+    "pnpm-workspace.yaml":
+      pnpm["pnpm-workspace.yaml"] + "minimumReleaseAgeIgnoreMissingTime: false\n",
+  };
+  expect((await scan(files)).status).toBe("pass");
+  const report = await scan({
+    ...files,
+    "pnpm-workspace.yaml": files["pnpm-workspace.yaml"] + "minimumReleaseAgeStrict: false\n",
+  });
+  expect(report.findings.some((item) => item.rule === "release-age")).toBe(true);
+});
+
 test("keeps centrally excepted findings visible", async () => {
   const selectedPolicy = validatePolicy({
     ...policy,
