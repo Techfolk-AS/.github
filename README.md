@@ -80,7 +80,7 @@ Pin an exact supported version in `package.json`, such as
 
 #### Run locally
 
-Install Bun 1.4.2 and the scanner's locked dependencies:
+Install Bun 1.4.4 and the scanner's locked dependencies:
 
 ```sh
 bun install --frozen-lockfile --ignore-scripts
